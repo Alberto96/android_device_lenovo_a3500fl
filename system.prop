@@ -1,0 +1,28 @@
+#
+# system.prop for a3500fl
+#
+
+## Graphics ##
+
+# Disable GL Library Preload
+ro.zygote.disable_gl_preload=1
+
+# Disable HDCP by default
+persist.hdmi.hdcp_enabled=false
+persist.sys.hdcp_checking=never
+
+## OTA Updates ##
+
+# ROM Manifest
+ro.ota.manifest=https://raw.githubusercontent.com/GearCM/android_device_lenovo_a3500fl/cm-12.1/ota.xml
+
+# ROM Name
+ro.ota.romname=GearCM121
+
+# ROM Version
+ro.ota.version=
+
+## Screen ##
+
+# 720p Screen Density
+ro.sf.lcd_density=320

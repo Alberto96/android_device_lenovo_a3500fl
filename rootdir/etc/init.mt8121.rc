@@ -1,0 +1,881 @@
+import init.mt6582.usb.rc
+import init.mt6582.wifi.rc
+
+on early-init
+	mount debugfs /sys/kernel/debug /sys/kernel/debug
+	
+	write /sys/block/mmcblk0/queue/scheduler noop
+
+# Increase max readahead size to 512 KB
+	write /sys/block/mmcblk0/queue/read_ahead_kb 512
+	write /sys/block/mmcblk1/queue/read_ahead_kb 512
+
+# Flash storage isn't a good entropy source, and only causes
+# locking overhead in the kernel. Turn it off.
+	write /sys/block/mmcblk0/queue/add_random 0
+	write /sys/block/mmcblk1/queue/add_random 0	
+
+on early_property:ro.hardware=*
+	setprop ro.mtk.hardware mt6582
+
+on init
+# See storage config details at http://source.android.com/devices/tech/storage/
+	mkdir /mnt/shell/emulated 0700 shell shell
+	mkdir /storage/emulated 0555 root root
+
+	mkdir /mnt/media_rw/sdcard1 0700 media_rw media_rw
+	mkdir /storage/sdcard1 0700 root root
+
+	mkdir /mnt/media_rw/usbdisk 0700 media_rw media_rw
+	mkdir /storage/usbdisk 0700 root root
+
+	export EXTERNAL_STORAGE /storage/emulated/legacy
+	export EMULATED_STORAGE_SOURCE /mnt/shell/emulated
+	export EMULATED_STORAGE_TARGET /storage/emulated
+	export SECONDARY_STORAGE /storage/sdcard1:/storage/usbdisk
+
+# Symlinks for backwards compatibility
+# Emulated Internal Storage
+	symlink /storage/emulated/legacy /sdcard
+	symlink /storage/emulated/legacy /mnt/sdcard
+	symlink /storage/emulated/legacy /storage/sdcard0
+	symlink /mnt/shell/emulated/0 /storage/emulated/legacy
+
+# External Storage
+	symlink /storage/sdcard1 /external_sd
+	symlink /storage/sdcard1 /mnt/external_sd
+
+# USB External Storage
+	symlink /storage/usbdisk /usbdisk
+	symlink /storage/usbdisk /mnt/usbdisk
+
+on fs
+	mount_all /fstab.mt6582
+
+	setprop ro.crypto.fuse_sdcard true
+	setprop ro.build.product a3500fl
+	setprop ro.product.device a3500fl
+	
+on post-fs
+	chown system system /sys/block/mmcblk0/queue/scheduler
+	chown system system /sys/block/mmcblk1/queue/scheduler
+	chmod 0664 /sys/block/mmcblk0/queue/scheduler
+	chmod 0664 /sys/block/mmcblk1/queue/scheduler
+
+# Permissions for controlling write performance boosting
+	chown system radio /sys/block/mmcblk0/bkops_en
+	chmod 0664 /sys/block/mmcblk0/bkops_en
+
+# Set up kernel tracing, but disable it by default
+	chmod 0222 /sys/kernel/debug/tracing/trace_marker
+	write /sys/kernel/debug/tracing/tracing_on 0	
+
+# 4.3 needs this
+	chmod 0644 /proc/cmdline
+	
+# Change ION driver permission
+	chmod 0644 /dev/ion
+
+# change lk_env permission
+	chown root system /proc/lk_env
+	chmod 0660 /proc/lk_env
+
+#change permissions for mediaserver
+	chown root media /proc/clkmgr/mipi_test
+
+#change permission for engineer mode
+	chown radio system /proc/clkmgr/pll_test
+	chown radio system /proc/clkmgr/pll_fsel
+
+#change permission for engineer mode
+	chown radio system /proc/freqhopping/dramc
+	chown radio system /proc/freqhopping/dumpregs
+	chown radio system /proc/freqhopping/freqhopping_debug
+	chown radio system /proc/freqhopping/status
+	chown radio system /proc/freqhopping/userdef
+
+# change owner
+	chown root system /proc/bootprof
+	chown root system /proc/mtprof/cputime
+
+	mkdir /data/nvram 2770 root nvram
+	mkdir /data/misc/bluetoothd 0770 bluetooth bluetooth
+	
+# radvd
+	mkdir /data/misc/radvd 0770 system system
+	chmod 444 /etc/radvd/radvd.conf
+
+#Mali 3D GPU driver
+	insmod /system/lib/modules/mali.ko
+
+# Touch Panel
+#chmod 0664 /dev/touch
+	chown root diag /sys/module/tpd_setting/parameters/tpd_calmat
+	chown root diag /sys/module/tpd_setting/parameters/tpd_em_debounce_time
+	chown root diag /sys/module/tpd_setting/parameters/tpd_mode
+	chown root diag /sys/module/tpd_setting/parameters/tpd_em_debounce_time0
+	chown root diag /sys/module/tpd_setting/parameters/tpd_em_debounce_time1
+	chown root diag /sys/module/tpd_setting/parameters/tpd_em_spl_num
+	chown root diag /sys/module/tpd_setting/parameters/tpd_em_pressure_threshold
+	chown root diag /sys/module/tpd_setting/parameters/tpd_em_auto_time_interval
+	chown root diag /sys/module/tpd_setting/parameters/tpd_em_sample_cnt
+	chown root diag /sys/module/tpd_setting/parameters/tpd_em_asamp
+	chown root diag /sys/module/tpd_debug/parameters/tpd_em_log
+	chown root diag /sys/module/tpd_debug/parameters/tpd_em_log_to_fs
+
+	chmod 0666 /dev/pmem_multimedia	
+
+# watch dog kicker
+	write /proc/wdk "0 20 30"
+
+# set ptmx group to non-root
+	chown root radio /dev/ptmx
+
+# RTC
+	mkdir /data/misc/rtc 0770 system system
+	chown system system /dev/rtc0
+	chmod 0660 /dev/rtc0
+
+#set mlock limit to infinate (for m4u operation)
+	setrlimit 8 -1 -1
+
+# Sensor
+	chmod 0660 /dev/hwmsensor
+	chmod 0660 /dev/msensor
+	chmod 0660 /dev/gsensor
+	chmod 0660 /dev/als_ps
+	chmod 0660 /dev/gyroscope
+	chmod 0660 /sys/class/misc/m_acc_misc/accenablenodata
+	chmod 0660 /sys/class/misc/m_acc_misc/accactive
+	chmod 0660 /sys/class/misc/m_acc_misc/accdelay
+	chmod 0660 /sys/class/misc/m_mag_misc/magactive
+	chmod 0660 /sys/class/misc/m_mag_misc/magdelay
+	chmod 0660 /sys/class/misc/m_mag_misc/magoactive
+	chmod 0660 /sys/class/misc/m_mag_misc/magodelay
+	
+	chmod 0660 /sys/devices/platform/msensor/driver/cpsopmode
+	chmod 0660 /sys/devices/platform/msensor/driver/cpsreptxy
+	chmod 0660 /sys/devices/platform/msensor/driver/cpsreptz
+	chmod 0660 /sys/devices/platform/gsensor/driver/cpsopmode
+	chmod 0660 /sys/devices/platform/gsensor/driver/cpsrange
+	chown system system /dev/hwmsensor
+	chown system system /dev/msensor
+	chown system system /dev/gsensor
+	chown radio system /dev/als_ps
+	chown system system /dev/gyroscope
+	chown system /sys/class/misc/m_acc_misc/accenablenodata
+	chown system /sys/class/misc/m_acc_misc/accactive
+	chown system /sys/class/misc/m_acc_misc/accdelay
+	chown system /sys/class/misc/m_mag_misc/magactive
+	chown system /sys/class/misc/m_mag_misc/magdelay
+	chown system /sys/class/misc/m_mag_misc/magoactive
+	chown system /sys/class/misc/m_mag_misc/magodelay
+		
+#Accdet
+	chown root radio /sys/devices/platform/Accdet_Driver/driver/accdet_call_state
+
+#VideoCodec
+	mknod /dev/Vcodec c 160 0
+	chmod 0660 /dev/Vcodec
+	chown system media /dev/Vcodec
+
+#kpd
+	chown radio radio /sys/devices/platform/mtk-kpd/driver/kpd_call_state
+
+#Charging Battery
+	chown radio radio /sys/devices/platform/battery/Charging_CallState
+
+	mkdir /data/amit/ 0770 system system
+	mkdir /data/misc/sensor 0774 system system
+	mkdir /data/misc/akmd 0770 system system
+	mkdir /data/misc/s62x 0771 compass compass
+	mkdir /data/misc/acdapi/ 0770 system system
+	chmod 0666 /data/misc/acdapi/calib.dat
+	chmod 0666 /data/misc/acdapi/param.dat
+	chmod 0666 /data/misc/acdapi/sensors.dat
+	chown system /sys/class/input/input4/enable
+	chown system /sys/class/input/input4/delay
+	chown system /sys/class/input/input4/wake
+	chown system /sys/class/input/input2/enable
+	chown system /sys/class/input/input2/wake
+	chown system /sys/class/input/input3/offsets	
+	chown system /sys/devices/platform/msensor/driver/cpsopmode
+	chown system /sys/devices/platform/msensor/driver/cpsreptxy
+	chown system /sys/devices/platform/msensor/driver/cpsreptz
+	chown system /sys/devices/platform/gsensor/driver/cpsopmode
+	chown system /sys/devices/platform/gsensor/driver/cpsrange
+	mkdir /data/data/mcube 0664 system system
+
+#EM eint
+	chown root diag /sys/bus/platform/drivers/eint/current_eint
+
+	chmod 0660 /dev/graphics/fb0
+	chown system graphics /dev/graphics/fb0
+
+	chmod 0660 /dev/mtkfb_vsync
+	chown system graphics /dev/mtkfb_vsync
+
+	chmod 0660 /dev/sw_sync
+	chown system graphics /dev/sw_sync
+
+# EM baseband file
+	chown root diag /system/bin/baseband_regdump
+	chmod 4750 /system/bin/baseband_regdump
+
+#pmu
+	chown root radio /sys/devices/platform/mt-pmic/pmic_access_bank0
+	chown root radio /sys/devices/platform/mt-pmic/pmic_access_bank1
+	chown root radio /sys/devices/platform/mt6333-user/mt6333_access
+	chown root radio /sys/devices/platform/mt-pmic/pmic_access
+	chmod 0664 /sys/devices/platform/mt-pmic/pmic_access_bank0
+	chmod 0664 /sys/devices/platform/mt-pmic/pmic_access_bank1
+	chmod 0664 /sys/devices/platform/mt6333-user/mt6333_access
+	chmod 0664 /sys/devices/platform/mt-pmic/pmic_access
+
+# EM CPU Speed Stress
+	chown root radio /proc/cpu_ss/cpu_ss_debug_mode
+	chown root radio /proc/cpu_ss/cpu_ss_mode
+	chown root radio /proc/cpu_ss/cpu_ss_period
+	chown root radio /proc/cpu_ss/cpu_ss_period_mode
+	chmod 0664 /proc/cpu_ss/cpu_ss_debug_mode
+	chmod 0664 /proc/cpu_ss/cpu_ss_mode
+	chmod 0664 /proc/cpu_ss/cpu_ss_period
+	chmod 0664 /proc/cpu_ss/cpu_ss_period_mode
+
+#EM eint
+	chown root diag /sys/bus/platform/drivers/eint/current_eint
+
+# for ppp options file
+	mkdir /data/misc/ppp 0770 bluetooth net_bt
+
+# Android SEC related device nodes
+#insmod /system/lib/modules/sec.ko
+	mknod /dev/sec c 182 0
+	chmod 0660 /dev/sec
+	chown root system /dev/sec
+
+# FM Radio device node
+	mknod /dev/fm c 193 0;
+	chmod 0660 /dev/fm
+	chown system media /dev/fm
+
+# device apc settings
+#insmod /system/lib/modules/devapc.ko
+
+# device info /proc interface
+#insmod /system/lib/modules/devinfo.ko
+	mknod /dev/devmap c 196 0;
+	chmod 0440 /dev/devmap
+	chown root system /dev/devmap
+
+# BT relayer mode used VCOM
+	chown bluetooth radio /dev/ttyGS2
+	chmod 0660 /dev/ttyGS2
+
+# bluetooth
+	mkdir /data/@btmtk 0770 bluetooth net_bt
+	chown bluetooth bluetooth /dev/hid-keyboard
+	chmod 0660 /dev/hid-keyboard
+#Use uinput's default permission
+	chown system net_bt_admin /dev/uinput
+
+# UIBC
+	chown system media /dev/uibc
+	chmod 0660 /dev/uibc
+
+#TV-out
+	chmod 0664 /dev/TV-out
+
+#HDMI
+	chown meida system /dev/hdmitx
+	chmod 0660 /dev/hdmitx
+
+# JPEG
+	chmod 0440 /dev/mtk_jpeg
+	chown system camera /dev/mtk_jpeg
+
+#ALMK
+	chmod 0440 /dev/mtk_almk
+
+# DISP
+	chmod 0440 /dev/mtk_disp
+	chown system system /dev/mtk_disp
+
+#Camera
+	chmod 0660 /dev/camera-sysram
+	chmod 0660 /dev/camera-isp
+	chmod 0660 /dev/camera-pipemgr
+	chmod 0660 /dev/kd_camera_hw
+	chmod 0660 /dev/kd_camera_flashlight
+	chmod 0660 /dev/kd_camera_hw_bus2
+	chmod 0660 /dev/FM50AF
+	chmod 0660 /dev/CAM_CAL_DRV
+
+	chown system camera /dev/camera-sysram
+	chown system camera /dev/camera-isp
+	chown system camera /dev/camera-pipemgr
+	chown system camera /dev/kd_camera_hw
+	chown system camera /dev/kd_camera_flashlight
+	chown system camera /dev/kd_camera_hw_bus2
+	chown system camera /dev/FM50AF
+	chown system camera /dev/CAM_CAL_DRV
+
+#/dev/RT_Monitor
+	chmod 0600 /dev/RT_Monitor
+	chown system system /dev/RT_Monitor
+
+#MATV
+	chmod 0660 /dev/MATV
+	chown system media /dev/MATV
+
+# otg_test
+	chown root radio /dev/mt_otg_test
+	chmod 0660 /dev/mt_otg_test
+
+# MDP
+	chmod 0660 /dev/mt-mdp
+	chown system media /dev/mt-mdp
+
+# G2D
+	chmod 0660 /dev/mtkg2d
+	chown system media /dev/mtkg2d
+
+# SMI
+	chmod 0660 /dev/MTK_SMI
+	chown system media /dev/MTK_SMI
+
+	chmod 0664 /sys/bus/platform/drivers/mem_bw_ctrl/concurrency_scenario
+	chown system media /sys/bus/platform/drivers/mem_bw_ctrl/concurrency_scenario
+
+#mtk_sched
+	chmod 0660 /dev/mtk_sched
+	chown system media /dev/mtk_sched
+   
+#BT SCO CVSD, for MT6572 and MT6582 CVSD codec on AP 
+	chmod 0660 /dev/ebc
+	chown system media /dev/ebc	
+   
+	chmod 0666 /dev/uio0
+
+#sbchk
+	mkdir /data/sec 0750 nvram system
+
+#otp
+	chmod 0660 /proc/driver/otp
+	chown root system /proc/driver/otp
+
+#autok
+	chown root system /sys/autok/debug
+	chown root system /sys/autok/param_count
+	chown root system /sys/autok/ready
+	chown root system /sys/autok/stage1/2/DONE
+	chown root system /sys/autok/stage1/2/PARAMS
+	chown root system /sys/autok/stage1/2/VOLTAGE
+	chown root system /sys/autok/stage2/2
+
+#sn
+	chmod 0664 /sys/class/android_usb/android0/iSerial
+	chown root system /sys/class/android_usb/android0/iSerial
+	
+	chmod 0664 /sys/class/leds/lcd-backlight/brightness
+	chown system system /sys/class/leds/captouch/brightness	
+
+	chown root system /sys/kernel/debug/binder/transaction_log_enable
+	chown root system /sys/kernel/debug/binder/perf_evalue
+	
+	chown system /sys/module/mlog/parameters/do_mlog
+	chown system /sys/module/mlog/parameters/timer_intval
+	
+	chown root radio /sys/class/leds/lcd-backlight/duty
+	chown root radio /sys/class/leds/lcd-backlight/div
+	chown system system /sys/class/leds/lcd-backlight/trigger
+	chown system system /sys/class/leds/button-backlight/trigger
+	chown system system /sys/class/leds/keyboard-backlight/trigger
+	chown system system /sys/class/leds/jogball-backlight/trigger
+	chown system system /sys/class/leds/red/trigger
+	chown system system /sys/class/leds/green/trigger
+	chown system system /sys/class/leds/blue/trigger
+	chown system system /sys/class/leds/captouch/trigger
+
+# Permission for hibernation
+	chown radio system /sys/power/tuxonice
+	chown radio system /sys/power/tuxonice/do_hibernate
+	chmod 0770 /sys/power/tuxonice
+	chmod 0220 /sys/power/tuxonice/do_hibernate
+
+# AGPS
+	mkdir /data/agps_supl 0771 gps system
+
+# NFC
+	mkdir /data/nfc_socket 0771 nfc radio
+
+## Thermal
+  #change permissions on thermal devices
+  chown root system /proc/mtktscpu/mtktscpu
+  chmod 0660 /proc/mtktscpu/mtktscpu
+  chown root system /proc/mtktsabb/mtktsabb
+  chmod 0660 /proc/mtktsabb/mtktsabb
+  chown root system /proc/mtktsbattery/mtktsbattery
+  chmod 0660 /proc/mtktsbattery/mtktsbattery
+  chown root system /proc/mtktspa/mtktspa
+  chmod 0660 /proc/mtktspa/mtktspa
+  chown root system /proc/mtktspmic/mtktspmic
+  chmod 0660 /proc/mtktspmic/mtktspmic
+  chown root system /proc/driver/mtk_thermal_monitor
+  chmod 0660 /proc/driver/mtk_thermal_monitor
+  chown root radio /proc/driver/mtm_scen_call
+  chmod 0660 /proc/driver/mtm_scen_call
+  chown system system /proc/driver/mtk_cl_sd_pid
+  chmod 0660 /proc/driver/mtk_cl_sd_pid
+  chown root system /proc/wmt_tm/wmt_tm
+  chown system system /proc/wmt_tm/tm_pid
+  chown system system /proc/wmt_tm/tx_thro
+  chown system system /proc/wmt_tm/wmt_val
+  chown system system /proc/wmt_tm/wfd_stat
+
+##Netlog tool
+   #change permissions about terminal
+	chown root radio /proc/net/vlan/config
+	chmod 0640 /proc/net/vlan/config
+	chown root radio /proc/net/ip6_tables_matches
+	chown root radio /proc/net/ip6_tables_names
+	chown root radio /proc/net/ip6_tables_targets
+	chown root radio /proc/net/arp_tables_targets
+	chown root radio /proc/net/arp_tables_matches
+	chown root radio /proc/net/arp_tables_names
+	chown root radio /proc/net/ip_tables_targets
+	chown root radio /proc/net/ip_tables_matches
+	chown root radio /proc/net/ip_tables_names
+	chown root radio /proc/net/ip_conntrack_expect
+	chown root radio /proc/net/ip_conntrack
+	chown root radio /proc/net/nf_conntrack
+	chown root radio /proc/net/nf_conntrack_expect
+	chown root radio /proc/net/netfilter/nfnetlink_log
+	chown root radio /proc/net/netfilter/nfnetlink_queue
+
+# define device for EMCSMDLOGGER
+	chown system radio /dev/ttyGS3
+	chmod 0660 /dev/ttyGS3
+
+#Define device for ATCID
+	chmod 660 /dev/ttyGS0 
+	chown system /dev/ttyGS0 
+	chmod 660 /dev/ttyGS1 
+	chown system /dev/ttyGS1
+	
+on post-fs-data
+	mkdir /data/media 0770 media_rw media_rw
+	
+	mkdir /data/radio 0770 radio radio
+
+# Set indication (checked by vold) that we have finished this action
+	setprop vold.post_fs_data_done 1
+
+on boot
+   start drvbd
+
+# To prevent out of order acknowledgements from making
+# connection tracking to treat them as not belonging to
+# the connection they belong to.
+# Otherwise, a weird issue happens in which some long
+# connections on high-throughput links get dropped when
+# an ack packet comes out of order
+	write /proc/sys/net/netfilter/nf_conntrack_tcp_be_liberal 1
+
+# Set up KSM
+	write /sys/kernel/mm/ksm/deferred_timer 1
+	write /sys/kernel/mm/ksm/pages_to_scan 100
+	write /sys/kernel/mm/ksm/sleep_millisecs 500
+	write /sys/kernel/mm/ksm/run 0
+
+# Set up kernel tracing, but disable it by default
+	chmod 0222 /sys/kernel/debug/tracing/trace_marker
+	write /sys/kernel/debug/tracing/tracing_on 0
+
+on charger
+# Do not set any USB mode while charging
+	setprop sys.usb.config charging
+
+###
+# Services begin here
+###
+
+service drvbd /system/bin/drvbd
+	class main
+	user system
+	group system
+
+service netdiag /system/bin/netdiag
+	class main
+	socket netdiag stream 0664 root inet
+
+
+service nvram_daemon /system/bin/nvram_daemon
+	class main
+	user nvram
+	group nvram system
+	oneshot
+
+# DFO (Begin)
+service featured /system/bin/featured
+	class core
+	user nvram
+	group nvram system
+	socket dfo stream 660 nvram system
+# DFO (End)
+
+service atci_service /system/bin/atci_service 
+	socket atci-service stream 660 radio system 
+	socket atci-serv-fw stream 660 radio system 
+	user root 
+	disabled
+	group radio system
+
+service atcid-daemon-u /system/bin/atcid
+	socket adb_atci_socket stream 660 radio system
+	user system
+	group radio system media
+	disabled
+	oneshot
+
+service atcid-daemon-e /system/bin/atcid
+	socket adb_atci_socket stream 660 radio system
+	user root 
+	group radio system
+	disabled
+	oneshot
+
+service audio-daemon /system/bin/audiocmdservice_atci
+	class main
+	socket atci-audio stream 660 root system
+	user root
+	disabled
+	oneshot
+
+service md_minilog_util /system/bin/md_minilog_util
+	user root
+	disabled
+	oneshot
+	
+service pq /system/bin/pq
+	class main
+	user system
+	group system graphics
+	oneshot	
+
+service aal /system/bin/aal
+	class main
+	user system
+	group system graphics radio
+
+service dhcpcd_bt-pan /system/bin/dhcpcd -BK
+	class main
+	user dhcp
+	group net_admin net_raw	   
+	disabled
+	oneshot
+
+service dhcpcd_eth0 /system/bin/dhcpcd -BK
+	class main
+	disabled
+	oneshot
+
+service iprenew_eth0 /system/bin/dhcpcd -n
+	class main
+	disabled
+	oneshot
+
+service DMAgent /system/bin/dm_agent_binder
+	user system
+	group system nvram cache
+
+service PPLAgent /system/bin/ppl_agent
+	user system
+	group system nvram cache
+
+service matv /system/bin/matv
+	class main
+	user system
+	group system sdcard_rw media
+	ioprio rt 4
+
+service vtservice /system/bin/vtservice
+	class main
+	socket soc_vt_tcv dgram 660 radio system
+	socket soc_vt_stk dgram 660 radio system
+	socket soc_vt_svc dgram 660 radio system
+	user root
+	group camera graphics media sdcard_rw radio sdcard_r media_rw
+	ioprio rt 4
+
+service bluetoothd /system/bin/bluetoothd -n
+	class main
+	socket bluetooth stream 660 bluetooth bluetooth
+	socket dbus_bluetooth stream 660 bluetooth bluetooth
+# init.rc does not yet support applying capabilities, so run as root and
+# let bluetoothd drop uid to bluetooth with the right linux capabilities
+	group bluetooth net_bt_admin misc
+	disabled
+
+service mtkbt /system/bin/mtkbt
+	socket bt.int.adp dgram 660 bluetooth net_bt
+	socket bt.a2dp.stream dgram 660 bluetooth net_bt
+	user bluetooth
+	group system net_bt bluetooth net_bt_admin sdcard_rw inet net_admin nvram net_raw vpn net_bt_stack media_rw sdcard_r
+	oneshot
+
+#
+#  External Modme control related services
+#
+service emd_daemon /system/bin/emd_daemon
+	user root
+	oneshot
+
+service agpsd /system/bin/mtk_agpsd
+	class main
+	socket agpsd stream 660 gps system
+	socket agpsd2 stream 660 gps system
+	socket agpsd3 stream 660 gps system
+	user gps
+	group gps ccci inet sdcard_r sdcard_rw misc
+
+service mnld /system/xbin/mnld
+	user gps
+	group nvram gps inet misc sdcard_rw sdcard_r media_rw
+	socket mnld stream 660 gps system
+	disabled
+
+service ipod /system/bin/ipod
+	user root
+	group root
+	socket ipohctl stream 0660 root root
+	disabled
+
+service extmdlogger /system/bin/extmdlogger
+	class main
+	user shell
+	group shell system radio sdcard_rw inet media_rw sdcard_r ccci
+
+service GoogleOtaAgent /system/bin/GoogleOtaBinder
+	user system
+	group system
+
+service mdlogger /system/bin/mdlogger
+	class main
+	user shell
+	group shell system radio sdcard_rw inet media_rw sdcard_r ccci
+	disabled
+	oneshot
+
+service dualmdlogger /system/bin/dualmdlogger
+	class main
+	user shell
+	group shell system radio sdcard_rw inet sdcard_r media_rw ccci
+	disabled
+	oneshot
+	
+service emcsmdlogger /system/bin/emcsmdlogger
+	class main
+	user shell
+	group system shell radio sdcard_rw inet media_rw sdcard_r ccci
+	disabled
+	oneshot
+
+#
+#sensor service (begin)
+#
+
+service msensord /system/bin/msensord
+	class main
+	oneshot
+
+service s62xd /system/bin/s62xd
+	disabled
+	user compass
+	group system
+	class main
+
+service ami304d /system/bin/ami304d
+	user system
+	group system
+	disabled
+	class main
+
+service memsicd /system/bin/memsicd
+	 disabled
+	user system
+	group system
+	class main
+
+service memsicd3416x /system/bin/memsicd3416x
+	 disabled
+	 user system
+	group system
+	class main
+	oneshot
+
+service akmd8975 /system/bin/akmd8975
+	disabled
+	user system
+	group system
+	class main
+
+service akmd8963 /system/bin/akmd8963
+	disabled
+	user system
+	group system
+	class main
+
+service akmd09911 /system/bin/akmd09911
+	disabled
+	user system
+	group system
+	class main
+
+service bmm050d /system/bin/bmm050d
+	disabled
+	user system
+	group system
+	class main
+
+service mc6420d /system/bin/mc6420d
+	disabled
+	user system
+	group system
+	class main
+	
+service qmc5983d /system/bin/qmc5983d
+	 disabled
+	 user system
+	group system
+	class main
+
+service orientationd /system/bin/orientationd
+	disabled
+	user system
+	group system input
+	class main
+
+service AcdApiDaemon /system/bin/AcdApiDaemon
+	disabled
+	user system
+	group system
+	class main
+
+service geomagneticd /system/bin/geomagneticd
+	disabled
+	user system
+	group system input
+	class main
+#
+#sensor service (end)
+#
+
+service afmsvr /system/bin/afm_server
+		user root
+
+#
+#emsvr service (end)
+#
+
+service shutdown /system/bin/shutdown
+	user root
+	group root
+	disabled
+
+service NvRAMAgent /system/bin/nvram_agent_binder
+		user system
+		group system nvram
+
+service thermal_manager /system/bin/thermal_manager
+		user root
+	oneshot
+
+service thermal /system/bin/thermal
+	user system
+	group system
+
+service thermald /system/bin/thermald
+	user system
+	group system
+
+service sn /system/bin/sn
+	user system
+	group system sdcard_r
+	oneshot
+
+#
+# MMProfile service
+#
+service mmp /system/bin/mmp read_config
+	user root
+	oneshot
+
+service sysctl /system/xbin/sysctld
+	user root
+	socket sysctl stream 0666 root root
+	disabled
+
+#add for power-off alarm
+service poad /system/bin/poad
+	user system
+	group system
+	oneshot
+
+#monitor battery status
+service batterywarning /system/bin/batterywarning
+	class main
+	user shell
+	group shell
+
+service backuprestore /system/bin/br_app_data_service
+	class main
+	socket backuprestore stream 0660 root sdcard_rw
+	user root
+
+service MtkCodecService /system/bin/MtkCodecService
+	class main
+	user root
+	group audio media sdcard_r
+	
+# create virtual SD card at /mnt/sdcard, based on the /data/media directory
+# daemon will drop to user/group system/media_rw after initializing
+# underlying files in /data/media wil be created with user and group media_rw (1023)
+service sdcard /system/bin/sdcard -u 1023 -g 1023 -t 4 -l /data/media /mnt/shell/emulated
+	class late_start
+
+service fuse_sdcard1 /system/bin/sdcard -u 1023 -g 1023 -t 4 -d /mnt/media_rw/sdcard1 /storage/sdcard1
+	class late_start
+	disabled
+
+service fuse_usbdisk /system/bin/sdcard -u 1023 -g 1023 -t 4 -d /mnt/media_rw/usbdisk /storage/usbdisk
+	class late_start
+	disabled
+
+service battery_charger /sbin/healthd -c
+	class charger
+	critical
+
+on property:sys.boot_completed=1
+	write /sys/block/mmcblk0/queue/scheduler fiops
+
+on property:ro.dumpstate.dmesg=1
+	write /proc/sys/kernel/dmesg_restrict 0
+
+# Adjust socket buffer to enlarge TCP receive window for high bandwidth
+# but only if ro.data.large_tcp_window_size property is set.
+on property:ro.data.large_tcp_window_size=true
+	write /proc/sys/net/ipv4/tcp_adv_win_scale 2
+
+# CyanogenMod Performance Profiles
+# Powersave
+on property:sys.perf.profile=0
+	write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor hotplug
+
+# Balanced
+on property:sys.perf.profile=1
+	write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor hotplug
+
+# Performance
+on property:sys.perf.profile=2
+	write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor performance

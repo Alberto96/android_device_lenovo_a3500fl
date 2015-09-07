@@ -1,0 +1,12 @@
+# mount point 	fstype 		device 													options (length for cryptfs encryption footer)
+/system			ext4		/dev/block/mmcblk0p5				flags=display="System"
+
+/cache			auto		/dev/block/mmcblk0p6				flags=display="Cache"
+
+/data			auto		/dev/block/mmcblk0p7
+
+/boot			emmc		/dev/bootimg				
+/recovery		emmc		/dev/recovery			flags=backup=1
+
+# SD card
+/external_sd	auto		/dev/block/mmcblk1p1 /dev/block/mmcblk1					flags=display="External Storage";storage;wipeingui;removable
